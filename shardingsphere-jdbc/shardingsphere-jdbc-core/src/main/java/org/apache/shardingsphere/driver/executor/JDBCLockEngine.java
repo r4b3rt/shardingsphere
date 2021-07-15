@@ -26,7 +26,7 @@ import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.J
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutorCallback;
 import org.apache.shardingsphere.infra.lock.LockNameUtil;
 import org.apache.shardingsphere.infra.lock.ShardingSphereLock;
-import org.apache.shardingsphere.infra.metadata.engine.MetadataRefreshEngine;
+import org.apache.shardingsphere.infra.context.metadata.refresher.MetadataRefreshEngine;
 import org.apache.shardingsphere.infra.route.context.RouteUnit;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.DDLStatement;
@@ -55,7 +55,8 @@ public final class JDBCLockEngine {
     public JDBCLockEngine(final MetaDataContexts metaDataContexts, final JDBCExecutor jdbcExecutor) {
         this.metaDataContexts = metaDataContexts;
         this.jdbcExecutor = jdbcExecutor;
-        metadataRefreshEngine = new MetadataRefreshEngine(metaDataContexts.getDefaultMetaData(), metaDataContexts.getProps(), metaDataContexts.getLock().orElse(null));
+        metadataRefreshEngine = new MetadataRefreshEngine(metaDataContexts.getDefaultMetaData(), 
+                metaDataContexts.getOptimizeContextFactory().getSchemaMetadatas().getDefaultSchemaMetadata(), metaDataContexts.getProps());
     }
     
     /**
@@ -70,7 +71,7 @@ public final class JDBCLockEngine {
      * @throws SQLException SQL exception
      */
     public <T> List<T> execute(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext, final SQLStatementContext<?> sqlStatementContext,
-                                  final Collection<RouteUnit> routeUnits, final JDBCExecutorCallback<T> callback) throws SQLException {
+                               final Collection<RouteUnit> routeUnits, final JDBCExecutorCallback<T> callback) throws SQLException {
         SQLStatement sqlStatement = sqlStatementContext.getSqlStatement();
         if (metaDataContexts.getLock().isPresent()) {
             ShardingSphereLock lock = metaDataContexts.getLock().get();
@@ -91,24 +92,24 @@ public final class JDBCLockEngine {
     }
     
     private void tryTableLock(final ShardingSphereLock lock, final Collection<String> tableNames) throws SQLException {
-        for (String tableName : tableNames) {
-            String lockName = LockNameUtil.getTableLockName(DefaultSchema.LOGIC_NAME, tableName);
+        for (String each : tableNames) {
+            String lockName = LockNameUtil.getTableLockName(DefaultSchema.LOGIC_NAME, each);
             if (!lock.tryLock(lockName)) {
-                throw new SQLException(String.format("Table %s lock wait timeout of %s ms exceeded", tableName, lock.getDefaultTimeOut()));
+                throw new SQLException(String.format("Table %s lock wait timeout of %s ms exceeded", each, lock.getDefaultTimeOut()));
             }
             lockNames.add(lockName);
         }
     }
     
     private void checkTableLock(final ShardingSphereLock lock, final Collection<String> tableNames) throws SQLException {
-        for (String tableName : tableNames) {
-            if (lock.isLocked(LockNameUtil.getTableLockName(DefaultSchema.LOGIC_NAME, tableName))) {
-                throw new SQLException("Table %s is locked");
+        for (String each : tableNames) {
+            if (lock.isLocked(LockNameUtil.getTableLockName(DefaultSchema.LOGIC_NAME, each))) {
+                throw new SQLException(String.format("Table %s is locked", each));
             }
         }
     }
     
-    private <T> List<T> doExecute(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext, final Collection<RouteUnit> routeUnits, 
+    private <T> List<T> doExecute(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext, final Collection<RouteUnit> routeUnits,
                                   final JDBCExecutorCallback<T> callback, final SQLStatement sqlStatement) throws SQLException {
         List<T> results = jdbcExecutor.execute(executionGroupContext, callback);
         refreshMetadata(sqlStatement, routeUnits);

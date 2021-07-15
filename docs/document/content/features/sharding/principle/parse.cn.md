@@ -58,7 +58,7 @@ ShardingSphere 的 SQL 解析器经历了 3 代产品的更新迭代。
 |Oracle    |支持     |
 |SQL92     |支持     |
 * 提供 SQL 格式化功能（开发中）
-* 提供 SQL 模板话功能（开发中）
+* 提供 SQL 模板化功能（开发中）
 
 ### API使用
 
@@ -113,8 +113,8 @@ SQLStatement sqlStatement = sqlVisitorEngine.visit(tree);
  * useCache type:boolean 是否使用缓存
  * @return String
  */
-ParseTree tree = new SQLParserEngine(databaseType).parse(sql, useCache); 
-SQLVisitorEngine sqlVisitorEngine = new SQLVisitorEngine(databaseType, "FORMAT");
+ParseTree tree = new SQLParserEngine(databaseType).parse(sql, useCache);
+SQLVisitorEngine sqlVisitorEngine = new SQLVisitorEngine(databaseType, "FORMAT", new Properties());
 String formatedSql = sqlVisitorEngine.visit(tree);
 ```
 

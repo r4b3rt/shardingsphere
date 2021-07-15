@@ -105,15 +105,21 @@ Proxy运行在${host-proxy}机器
 
 #### 进入sysbench压测结果目录
 
+```bash
 cd /home/jenkins/sysbench_res/sharding
+```
 
 #### 创建本次构建的文件夹
 
+```bash
 mkdir $BUILD_NUMBER
+```
 
 #### 取最后14次构建，保存到隐藏文件中
 
+```bash
 ls -v | tail -n14 > .build_number.txt
+```
 
 #### 部署及压测
 
@@ -121,7 +127,7 @@ ls -v | tail -n14 > .build_number.txt
 
 ./deploy_sharding.sh
 
-```
+```bash
 #!/bin/sh
 
 rm -fr apache-shardingsphere-*-shardingsphere-proxy-bin
@@ -140,7 +146,7 @@ sleep 30
 
 步骤2 执行sysbench脚本
 
-```
+```bash
 # master
 
 cd /home/jenkins/sysbench_res/sharding
@@ -167,7 +173,7 @@ sysbench oltp_read_only --mysql-host=${host-proxy} --mysql-port=3307 --mysql-use
 
 ./stop_proxy.sh
 
-```
+```bash
 #!/bin/sh
 
 ./3.0.0_sharding-proxy/bin/stop.sh 
@@ -177,7 +183,7 @@ sysbench oltp_read_only --mysql-host=${host-proxy} --mysql-port=3307 --mysql-use
 
 #### 生成压测曲线图片
 
-```
+```bash
 # Generate graph
 
 cd /home/jenkins/sysbench_res/
@@ -297,12 +303,9 @@ Execute Statement: ID = 1
 server.yaml
 
 ```yaml
-authentication:
-  users:
-    root:
-      password: root
-    sharding:
-      password: sharding
+users:
+  - root@%:root
+  - sharding@:sharding
 
 props:
   max-connections-size-per-query: 10
@@ -314,7 +317,6 @@ props:
   proxy-transaction-type: LOCAL
   proxy-opentracing-enabled: false
   proxy-hint-enabled: false
-  query-with-cipher-column: true
   sql-show: false
   check-table-metadata-enabled: false
   lock-wait-timeout-milliseconds: 50000 # The maximum time to wait for a lock
@@ -336,7 +338,6 @@ dataSources:
     maxLifetimeMilliseconds: 1800000
     maxPoolSize: 256
     minPoolSize: 256
-    maintenanceIntervalMilliseconds: 30000
   ds_1:
     url: jdbc:mysql://${host-mysql-2}:3306/sbtest?serverTimezone=UTC&useSSL=false
     username: root
@@ -346,7 +347,6 @@ dataSources:
     maxLifetimeMilliseconds: 1800000
     maxPoolSize: 256
     minPoolSize: 256
-    maintenanceIntervalMilliseconds: 30000
 
 rules:
 - !SHARDING
@@ -514,13 +514,11 @@ dataSources:
     maxLifetimeMilliseconds: 1800000
     maxPoolSize: 128
     minPoolSize: 128
-    maintenanceIntervalMilliseconds: 30000
 
 rules:
-- !REPLICA_QUERY
+- !READWRITE_SPLITTING
   dataSources:
     pr_ds:
-      name: pr_ds
       primaryDataSourceName: ds_0
       replicaDataSourceNames:
         - ds_0
@@ -542,7 +540,6 @@ dataSources:
     maxLifetimeMilliseconds: 1800000
     maxPoolSize: 256
     minPoolSize: 256
-    maintenanceIntervalMilliseconds: 30000
   primary_ds_1:
     url: jdbc:mysql://${host-mysql-2}:3306/sbtest?serverTimezone=UTC&useSSL=false
     username: root
@@ -552,7 +549,6 @@ dataSources:
     maxLifetimeMilliseconds: 1800000
     maxPoolSize: 256
     minPoolSize: 256
-    maintenanceIntervalMilliseconds: 30000
 
 rules:
 - !SHARDING
@@ -704,10 +700,9 @@ rules:
       props:
         worker-id: 123
 
-- !REPLICA_QUERY
+- !READWRITE_SPLITTING
   dataSources:
     ds_0:
-      name: ds_0
       primaryDataSourceName: primary_ds_0
       replicaDataSourceNames:
         - primary_ds_0
@@ -735,7 +730,6 @@ dataSources:
     maxLifetimeMilliseconds: 1800000
     maxPoolSize: 256
     minPoolSize: 256
-    maintenanceIntervalMilliseconds: 30000
 
 rules:
 - !ENCRYPT
@@ -1507,3 +1501,5 @@ if __name__ == '__main__':
     generate_graph(path, 'oltp_update_non_index')
     generate_graph(path, 'oltp_delete')
 ```
+
+目前在 ShardingSphere 的 benchmark 项目 [shardingsphere-benchmark](https://github.com/apache/shardingsphere-benchmark) 中已经共享了 sysbench 的使用方式 : [sysbench 压测工具](https://github.com/apache/shardingsphere-benchmark/blob/master/sysbench/README_ZH.md)

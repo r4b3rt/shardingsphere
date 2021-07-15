@@ -20,13 +20,12 @@ package org.apache.shardingsphere.proxy.frontend.mysql.err;
 import org.apache.shardingsphere.db.protocol.mysql.packet.generic.MySQLErrPacket;
 import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
 import org.apache.shardingsphere.infra.config.exception.ShardingSphereConfigurationException;
+import org.apache.shardingsphere.infra.distsql.exception.rule.RuleDefinitionViolationException;
 import org.apache.shardingsphere.proxy.backend.exception.CircuitBreakException;
 import org.apache.shardingsphere.proxy.backend.exception.DBCreateExistsException;
 import org.apache.shardingsphere.proxy.backend.exception.DBDropExistsException;
 import org.apache.shardingsphere.proxy.backend.exception.NoDatabaseSelectedException;
-import org.apache.shardingsphere.proxy.backend.exception.ShardingTableRuleNotExistedException;
 import org.apache.shardingsphere.proxy.backend.exception.TableModifyInTransactionException;
-import org.apache.shardingsphere.proxy.backend.exception.TablesInUsedException;
 import org.apache.shardingsphere.proxy.backend.exception.UnknownDatabaseException;
 import org.apache.shardingsphere.proxy.backend.text.sctl.exception.InvalidShardingCTLFormatException;
 import org.apache.shardingsphere.proxy.backend.text.sctl.exception.UnsupportedShardingCTLTypeException;
@@ -38,13 +37,13 @@ import org.apache.shardingsphere.sql.parser.exception.SQLParsingException;
 import org.junit.Test;
 
 import java.sql.SQLException;
-import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public final class MySQLErrPacketFactoryTest {
     
@@ -101,7 +100,7 @@ public final class MySQLErrPacketFactoryTest {
         assertThat(actual.getSqlState(), is("HY000"));
         assertThat(actual.getErrorMessage(), is("Please do not modify the unknown_table table with an XA transaction. "
                 + "This is an internal system table used to store GTIDs for committed transactions. "
-                + "Although modifying it can lead to an inconsistent GTID state, if neccessary you can modify it with a non-XA transaction."));
+                + "Although modifying it can lead to an inconsistent GTID state, if necessary you can modify it with a non-XA transaction."));
     }
     
     @Test
@@ -172,7 +171,7 @@ public final class MySQLErrPacketFactoryTest {
         assertThat(actual.getSequenceId(), is(1));
         assertThat(actual.getErrorCode(), is(1235));
         assertThat(actual.getSqlState(), is("42000"));
-        assertThat(actual.getErrorMessage(), is("This version of ShardingProxy doesn't yet support this SQL. 'No reason'"));
+        assertThat(actual.getErrorMessage(), is("This version of ShardingSphere-Proxy doesn't yet support this SQL. 'No reason'"));
     }
     
     @Test
@@ -194,23 +193,18 @@ public final class MySQLErrPacketFactoryTest {
     }
     
     @Test
-    public void assertNewInstanceWithShardingTableRuleNotExistedException() {
-        MySQLErrPacket actual = MySQLErrPacketFactory.newInstance(new ShardingTableRuleNotExistedException(Collections.singleton("tbl")));
+    public void assertNewInstanceWithRuleDefinitionViolationException() {
+        RuleDefinitionViolationException exception = mock(RuleDefinitionViolationException.class);
+        when(exception.getErrorCode()).thenReturn(1);
+        when(exception.getSQLState()).thenReturn("C0000");
+        when(exception.getMessage()).thenReturn("Test error");
+        MySQLErrPacket actual = MySQLErrPacketFactory.newInstance(exception);
         assertThat(actual.getSequenceId(), is(1));
-        assertThat(actual.getErrorCode(), is(1101));
-        assertThat(actual.getSqlState(), is("C1101"));
-        assertThat(actual.getErrorMessage(), is("Sharding table rule [tbl] is not exist."));
+        assertThat(actual.getErrorCode(), is(1));
+        assertThat(actual.getSqlState(), is("C0000"));
+        assertThat(actual.getErrorMessage(), is("Test error"));
     }
     
-    @Test
-    public void assertNewInstanceWithTablesInUsedException() {
-        MySQLErrPacket actual = MySQLErrPacketFactory.newInstance(new TablesInUsedException(Collections.singleton("tbl")));
-        assertThat(actual.getSequenceId(), is(1));
-        assertThat(actual.getErrorCode(), is(1102));
-        assertThat(actual.getSqlState(), is("C1102"));
-        assertThat(actual.getErrorMessage(), is("Tables [tbl] in the rule are still in used."));
-    }
-
     @Test
     public void assertNewInstanceWithUnsupportedCommandException() {
         MySQLErrPacket actual = MySQLErrPacketFactory.newInstance(new UnsupportedCommandException("No reason"));

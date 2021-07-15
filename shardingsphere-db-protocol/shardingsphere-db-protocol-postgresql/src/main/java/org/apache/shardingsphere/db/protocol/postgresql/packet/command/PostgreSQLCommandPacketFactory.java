@@ -21,6 +21,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.apache.shardingsphere.db.protocol.postgresql.packet.command.admin.PostgreSQLUnsupportedCommandPacket;
 import org.apache.shardingsphere.db.protocol.postgresql.packet.command.query.binary.bind.PostgreSQLComBindPacket;
+import org.apache.shardingsphere.db.protocol.postgresql.packet.command.query.binary.close.PostgreSQLComClosePacket;
 import org.apache.shardingsphere.db.protocol.postgresql.packet.command.query.binary.describe.PostgreSQLComDescribePacket;
 import org.apache.shardingsphere.db.protocol.postgresql.packet.command.query.binary.execute.PostgreSQLComExecutePacket;
 import org.apache.shardingsphere.db.protocol.postgresql.packet.command.query.binary.parse.PostgreSQLComParsePacket;
@@ -40,7 +41,7 @@ public final class PostgreSQLCommandPacketFactory {
      *
      * @param commandPacketType command packet type for PostgreSQL
      * @param payload packet payload for PostgreSQL
-     * @param connectionId connection id
+     * @param connectionId connection ID
      * @return command packet for PostgreSQL
      */
     public static PostgreSQLCommandPacket newInstance(final PostgreSQLCommandPacketType commandPacketType, final PostgreSQLPacketPayload payload, final int connectionId) {
@@ -57,6 +58,8 @@ public final class PostgreSQLCommandPacketFactory {
                 return new PostgreSQLComExecutePacket(payload);
             case SYNC_COMMAND:
                 return new PostgreSQLComSyncPacket(payload);
+            case CLOSE_COMMAND:
+                return new PostgreSQLComClosePacket(payload);
             case TERMINATE:
                 return new PostgreSQLComTerminationPacket(payload);
             default:

@@ -17,11 +17,19 @@
 
 package org.apache.shardingsphere.proxy.frontend.postgresql.err;
 
+import com.google.common.base.Strings;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.apache.shardingsphere.db.protocol.postgresql.constant.PostgreSQLErrorCode;
+import org.apache.shardingsphere.db.protocol.postgresql.constant.PostgreSQLMessageSeverityLevel;
 import org.apache.shardingsphere.db.protocol.postgresql.packet.generic.PostgreSQLErrorResponsePacket;
+import org.apache.shardingsphere.proxy.frontend.postgresql.authentication.exception.InvalidAuthorizationSpecificationException;
+import org.apache.shardingsphere.proxy.frontend.postgresql.authentication.exception.PostgreSQLAuthenticationException;
+import org.apache.shardingsphere.proxy.frontend.postgresql.authentication.exception.PostgreSQLProtocolViolationException;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
+
+import java.sql.SQLException;
 
 /**
  * ERR packet factory for PostgreSQL.
@@ -36,33 +44,44 @@ public final class PostgreSQLErrPacketFactory {
      * @return instance of PostgreSQL ERR packet
      */
     public static PostgreSQLErrorResponsePacket newInstance(final Exception cause) {
-        return cause instanceof PSQLException ? createErrorResponsePacket((PSQLException) cause) : createErrorResponsePacket(cause);
+        if (cause instanceof PSQLException && null != ((PSQLException) cause).getServerErrorMessage()) {
+            return createErrorResponsePacket(((PSQLException) cause).getServerErrorMessage());
+        }
+        if (cause instanceof SQLException) {
+            return createErrorResponsePacket((SQLException) cause);
+        }
+        if (cause instanceof InvalidAuthorizationSpecificationException) {
+            return PostgreSQLErrorResponsePacket.newBuilder(PostgreSQLMessageSeverityLevel.FATAL, PostgreSQLErrorCode.INVALID_AUTHORIZATION_SPECIFICATION, cause.getMessage()).build();
+        }
+        if (cause instanceof PostgreSQLProtocolViolationException) {
+            return PostgreSQLErrorResponsePacket.newBuilder(PostgreSQLMessageSeverityLevel.FATAL, PostgreSQLErrorCode.PROTOCOL_VIOLATION,
+                    String.format("expected %s response, got message type %s", ((PostgreSQLProtocolViolationException) cause).getExpectedMessageType(),
+                            ((PostgreSQLProtocolViolationException) cause).getActualMessageType())).build();
+        }
+        if (cause instanceof PostgreSQLAuthenticationException) {
+            return PostgreSQLErrorResponsePacket.newBuilder(PostgreSQLMessageSeverityLevel.FATAL, ((PostgreSQLAuthenticationException) cause).getErrorCode(), cause.getMessage()).build();
+        }
+        return createErrorResponsePacketForUnknownException(cause);
     }
     
-    private static PostgreSQLErrorResponsePacket createErrorResponsePacket(final Exception cause) {
-        PostgreSQLErrorResponsePacket result = new PostgreSQLErrorResponsePacket();
-        result.addField(PostgreSQLErrorResponsePacket.FIELD_TYPE_MESSAGE, cause.getMessage());
-        // TODO add common error code
-        return result;
+    private static PostgreSQLErrorResponsePacket createErrorResponsePacket(final SQLException cause) {
+        // TODO consider what severity to use
+        String sqlState = Strings.isNullOrEmpty(cause.getSQLState()) ? PostgreSQLErrorCode.SYSTEM_ERROR.getErrorCode() : cause.getSQLState();
+        String message = Strings.isNullOrEmpty(cause.getMessage()) ? cause.toString() : cause.getMessage();
+        return PostgreSQLErrorResponsePacket.newBuilder(PostgreSQLMessageSeverityLevel.ERROR, sqlState, message).build();
     }
     
-    private static PostgreSQLErrorResponsePacket createErrorResponsePacket(final PSQLException cause) {
-        return null == cause.getServerErrorMessage() ? createErrorResponsePacketWithoutServerErrorMessage(cause) : createErrorResponsePacketByServerErrorMessage(cause.getServerErrorMessage());
+    private static PostgreSQLErrorResponsePacket createErrorResponsePacket(final ServerErrorMessage serverErrorMessage) {
+        return PostgreSQLErrorResponsePacket.newBuilder(PostgreSQLMessageSeverityLevel.valueOf(serverErrorMessage.getSeverity()), serverErrorMessage.getSQLState(), serverErrorMessage.getMessage())
+                .detail(serverErrorMessage.getDetail()).hint(serverErrorMessage.getHint()).position(serverErrorMessage.getPosition())
+                .internalQueryAndInternalPosition(serverErrorMessage.getInternalQuery(), serverErrorMessage.getInternalPosition()).where(serverErrorMessage.getWhere())
+                .schemaName(serverErrorMessage.getSchema()).tableName(serverErrorMessage.getTable()).columnName(serverErrorMessage.getColumn()).dataTypeName(serverErrorMessage.getDatatype())
+                .constraintName(serverErrorMessage.getConstraint()).file(serverErrorMessage.getFile()).line(serverErrorMessage.getLine()).routine(serverErrorMessage.getRoutine()).build();
     }
     
-    private static PostgreSQLErrorResponsePacket createErrorResponsePacketWithoutServerErrorMessage(final PSQLException cause) {
-        PostgreSQLErrorResponsePacket result = new PostgreSQLErrorResponsePacket();
-        result.addField(PostgreSQLErrorResponsePacket.FIELD_TYPE_CODE, cause.getSQLState());
-        result.addField(PostgreSQLErrorResponsePacket.FIELD_TYPE_MESSAGE, cause.getMessage());
-        return result;
-    }
-    
-    private static PostgreSQLErrorResponsePacket createErrorResponsePacketByServerErrorMessage(final ServerErrorMessage serverErrorMessage) {
-        PostgreSQLErrorResponsePacket result = new PostgreSQLErrorResponsePacket();
-        result.addField(PostgreSQLErrorResponsePacket.FIELD_TYPE_SEVERITY, serverErrorMessage.getSeverity());
-        result.addField(PostgreSQLErrorResponsePacket.FIELD_TYPE_CODE, serverErrorMessage.getSQLState());
-        result.addField(PostgreSQLErrorResponsePacket.FIELD_TYPE_MESSAGE, serverErrorMessage.getMessage());
-        result.addField(PostgreSQLErrorResponsePacket.FIELD_TYPE_POSITION, Integer.toString(serverErrorMessage.getPosition()));
-        return result;
+    private static PostgreSQLErrorResponsePacket createErrorResponsePacketForUnknownException(final Exception cause) {
+        // TODO add FIELD_TYPE_CODE for common error and consider what severity to use
+        String message = Strings.isNullOrEmpty(cause.getLocalizedMessage()) ? cause.toString() : cause.getLocalizedMessage();
+        return PostgreSQLErrorResponsePacket.newBuilder(PostgreSQLMessageSeverityLevel.ERROR, PostgreSQLErrorCode.SYSTEM_ERROR, message).build();
     }
 }

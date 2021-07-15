@@ -52,13 +52,23 @@ public final class ShardingSphereResource {
     }
     
     /**
+     * Get not existed resource name.
+     * 
+     * @param resourceNames resource names to be judged
+     * @return not existed resource names
+     */
+    public Collection<String> getNotExistedResources(final Collection<String> resourceNames) {
+        return resourceNames.stream().filter(each -> !dataSources.containsKey(each)).collect(Collectors.toSet());
+    }
+    
+    /**
      * Close data sources.
      * 
      * @param dataSources data sources to be closed
      * @throws SQLException exception
      */
     public void close(final Collection<String> dataSources) throws SQLException {
-        for (String each :dataSources) {
+        for (String each : dataSources) {
             close(this.dataSources.get(each));
         }
     }

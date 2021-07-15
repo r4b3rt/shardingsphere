@@ -47,5 +47,14 @@ execute
     | call
     | merge
     | alterSynonym
+    | alterSession
+    | alterDatabase
+    | alterSystem
+    | setConstraints
+    | analyze
+    | associateStatistics
+    | disassociateStatistics
+    | audit
+    | noAudit
     ) SEMI_?
     ;
